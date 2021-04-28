@@ -1,6 +1,9 @@
 classdef MTSleepScorer < handle
-    
-    %%%%%%%%%%%%%%%% public properties %%%%%%%%%%%%%%%%%%
+%   Copyright 2021 Michael J. Prerau, Ph.D. - http://www.sleepEEG.org
+%   This work is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License.
+%   (http://creativecommons.org/licenses/by-nc-sa/4.0/)    
+
+%%%%%%%%%%%%%%%% public properties %%%%%%%%%%%%%%%%%%
     properties (Access = public)
         %Replace handling with Event Marker
         event_marker;
@@ -125,6 +128,11 @@ classdef MTSleepScorer < handle
             defaultanswer={''};
             answer=inputdlg(prompt,name,numlines,defaultanswer);
             
+            %Return if no answer
+            if isempty(answer)
+                return;
+            end
+            
             obj.initials=answer{1};
             
             if ~exist(obj.data_path,'dir')
@@ -184,9 +192,9 @@ classdef MTSleepScorer < handle
                 for ii = 1:obj.num_channels
                     %Preallocate first time around
                     if ii == 1
-                        
                         [spect,obj.stimes{res},obj.sfreqs{res}] = multitaper_spectrogram_mex(data{ii}, obj.Fs(ii), [params.frequency_range(1) min(params.frequency_range(2), obj.Fs(ii)/2)], ...
                             params.taper_params, params.window_params,params.min_nfft, params.detrend_opt, params.weighting, false, false);
+                        
                         spect_size = size(spect);
                         obj.scube{res} = zeros([obj.num_channels, spect_size]);
                     else
@@ -757,6 +765,7 @@ classdef MTSleepScorer < handle
                 return
             end
             
+            %Use drawrectangle if available
             if which('drawrectangle.m')
                 h1 = drawrectangle('Label','Select Region and Hit Enter','Color',[1 0 0]);
             else
