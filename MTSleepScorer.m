@@ -81,7 +81,7 @@ classdef MTSleepScorer < handle
         %             CONSTRUCTOR METHOD
         %***********************************************
         
-        function obj = MTSleepScorer(varargin)            
+        function obj = MTSleepScorer(varargin)
             %Run the initialization script
             MT_scoring_init_script
             
@@ -126,6 +126,15 @@ classdef MTSleepScorer < handle
             answer=inputdlg(prompt,name,numlines,defaultanswer);
             
             obj.initials=answer{1};
+            
+            if ~exist(obj.data_path,'dir')
+                error('Invalid data path');
+            end
+            
+            if ~exist(obj.save_path,'dir')
+                error('Invalid save path');
+            end
+            
             
             %Let the user select the data file to load
             d=dir(fullfile(obj.data_path,'*.edf'));
@@ -309,7 +318,7 @@ classdef MTSleepScorer < handle
                 em.add_event_type(EventObject('R',4,false,false));
                 em.add_event_type(EventObject('N',3,false,false));
                 em.add_event_type(EventObject('A',6,false,false));
-                em.add_event_type(EventObject('s',7,true,false));
+                em.add_event_type(EventObject([],7,true,false));
             elseif obj.numstages == 5
                 em.add_event_type(EventObject('W',5,false,false));
                 em.add_event_type(EventObject('R',4,false,false));
@@ -317,7 +326,7 @@ classdef MTSleepScorer < handle
                 em.add_event_type(EventObject('N2',2,false,false));
                 em.add_event_type(EventObject('N3',1,false,false));
                 em.add_event_type(EventObject('A',6,false,false));
-                em.add_event_type(EventObject('s',7,true,false));
+                em.add_event_type(EventObject([],7,true,false));
             else
                 error('Must have either 3 or 5 stages');
             end
@@ -356,7 +365,7 @@ classdef MTSleepScorer < handle
             
             obj.autoscale_h = uicontrol(obj.mainfig_h,'units','normalized','string','Autoscale','Position',[0.9542 0.9225 0.0352 0.0217],'backgroundcolor',...
                 get(obj.mainfig_h,'color'),'horizontalalign','center','callback',@obj.clim_autoscale);
-             
+            
             %Array of all edit box handles
             obj.clim_editboxes_h=[maxedit_h minedit_h];
             
@@ -377,7 +386,7 @@ classdef MTSleepScorer < handle
             %---------------------------------------------------------
             [obj.zoom_slider, ~]=scrollzoompan(obj.axes_main(2),'x', @obj.update_zoom, @obj.update_pan);%, bounds);
             set(obj.zoom_slider,'min',10);
-                
+            
             %---------------------------------------------------------
             %                SLICE POPUP WINDOW
             %---------------------------------------------------------
@@ -487,7 +496,7 @@ classdef MTSleepScorer < handle
         function EM_callback(obj, emarker_h, varargin)
             
             %Grab the current position of the sliding event marker
-            if strcmpi(class(emarker_h),'images.roi.Line')
+            if strcmpi(class(emarker_h),'images.roi.Line') || strcmpi(class(emarker_h),'images.roi.Rectangle')
                 emarker_pos = emarker_h.Position;
             else
                 emarker_pos = getPosition(emarker_h);
@@ -524,13 +533,13 @@ classdef MTSleepScorer < handle
             dt = diff(xl);
             
             for ii = 1:length(obj.mt_param_scales)
-            if obj.curr_resolution ~= ii && dt <= obj.mt_param_scales(ii) && dt>obj.mt_param_scales(ii+1)
-                obj.spect_h.CData=squeeze(obj.scube{ii}(obj.curr_channel,:,:));
-                obj.spect_h.XData = obj.stimes{ii};
-                obj.spect_h.YData = obj.sfreqs{ii};
-
-                obj.curr_resolution = ii;
-            end
+                if obj.curr_resolution ~= ii && dt <= obj.mt_param_scales(ii) && dt>obj.mt_param_scales(ii+1)
+                    obj.spect_h.CData=squeeze(obj.scube{ii}(obj.curr_channel,:,:));
+                    obj.spect_h.XData = obj.stimes{ii};
+                    obj.spect_h.YData = obj.sfreqs{ii};
+                    
+                    obj.curr_resolution = ii;
+                end
             end
             
             set(obj.zoomrect,'xdata',[xl fliplr(xl)]);
@@ -698,10 +707,41 @@ classdef MTSleepScorer < handle
             
             set(obj.clim_sliders_h(1),'value', cx(2));
             set(obj.clim_sliders_h(2),'value', cx(1));
-
+            
             set(obj.clim_editboxes_h(1),'string',num2str(cx(1)));
             set(obj.clim_editboxes_h(2),'string',num2str(cx(2)));
         end
+        
+        %************************************************************
+        %              AUTOSCORE TF_SIGMA PEAKS
+        %************************************************************
+        function autoscore_TFsigma_peaks(obj, varargin)
+            
+            [hdr, ~, data] = blockEdfLoad(fullfile(obj.data_path,obj.file_name),{obj.channel_labels{obj.curr_channel}});
+            
+            estage = [obj.event_marker.event_list.type_ID];
+            stage_inds = estage<=6; %Pick only stages
+            estage = estage(stage_inds);
+            
+            etimes = cellfun(@(x)x.XData(1),{obj.event_marker.event_list(stage_inds).obj_handle});
+            
+            %Sort the times and plot the hypnogram
+            [stage_times,sind]=sort(etimes);
+            stage_vals=estage(sind);
+            
+            h = msgbox('Autodetecting TF_sigma Peaks...');
+            [ spindle_table, ~, ~, ~, ~ ] = ...
+                TF_peak_detection(data{1},  hdr.samplingfrequency, [stage_times(:), stage_vals(:)],...
+                'to_plot',false, 'spindle_freq_range',[10,16], 'detection_stages',3);
+            delete(h);
+            
+            pos = [ spindle_table.Start_Time, spindle_table.Freq_Low,...
+                spindle_table.Duration, spindle_table.Freq_High-spindle_table.Freq_Low ];
+            obj.event_marker.mark_event(7,pos);
+            
+            obj.save_scoring;
+        end
+        
         
         %************************************************************
         %              UPDATE AUTOSCALE
@@ -718,7 +758,7 @@ classdef MTSleepScorer < handle
             end
             
             if which('drawrectangle.m')
-                h1 = drawrectangle('Label','Select Region and Hit Enter','Color',[1 0 0]); 
+                h1 = drawrectangle('Label','Select Region and Hit Enter','Color',[1 0 0]);
             else
                 h1 = imrect;
             end
@@ -816,11 +856,13 @@ classdef MTSleepScorer < handle
                         new_chan = obj.num_channels;
                     end
                     obj.update_channel(new_chan);
+                case '*'
+                    obj.autoscore_TFsigma_peaks;
             end
             
             obj.update_hypno([]);
         end
-          
+        
         %************************************************************
         %               CLOSE ALL FIGURES CLEANLY
         %************************************************************

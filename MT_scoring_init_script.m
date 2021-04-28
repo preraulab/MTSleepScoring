@@ -1,4 +1,4 @@
-root = '/Users/Mike/Desktop/research/MTSleepScorer/';
+root = '/Users/Mike/code/projects/MTSleepScoring';
 
 data_path =  fullfile(root,'/data');
 save_path = fullfile(root,'/scoring');
