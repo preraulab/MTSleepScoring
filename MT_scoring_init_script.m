@@ -23,7 +23,7 @@ mt_stage.weighting='unity'; %weight each taper equally
 mt_micro.frequency_range=[0.5 35]; %Limit frequencies from 0 to 35 Hz
 mt_micro.taper_params=[2 3]; %Time bandwidth and number of tapers
 mt_micro.window_params=[1 0.1]; %Window size is 1s with step size of 0.1s
-mt_micro.min_nfft=2^9; %No minimum nfft
+mt_micro.min_nfft=2^8; %No minimum nfft
 mt_micro.detrend_opt='constant'; %Make windows zero-mean
 mt_micro.weighting='unity'; %weight each taper equally
 
