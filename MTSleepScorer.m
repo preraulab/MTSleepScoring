@@ -239,7 +239,7 @@ classdef MTSleepScorer < handle
         %---------------------------------------------------------
         function init_fig(obj)
             %Set up the figure (hide until complete)
-            obj.mainfig_h=figure('units','normalized','position',[0 0 1 1],'units','normalized',...
+            obj.mainfig_h=figure('units','normalized','position',[0 0 .6 .6],'units','normalized',...
                 'color','w','KeyPressFcn',@obj.handle_keys,'visible','off','windowbuttonupfcn',@obj.save_scoring);
 
             %Make axes
@@ -422,7 +422,7 @@ classdef MTSleepScorer < handle
         %                    HELP FUNCTION
         %************************************************************
         function display_help(obj)
-            obj.helpfig_h=figure('units','normalized','position',[0 .7 .2 .35],'color','w','name','EEG Viewer','menubar','none');
+            obj.helpfig_h=figure('units','normalized','position',[0 .7 .1 .25],'color','w','name','EEG Viewer','menubar','none');
             axes('units','normalized','position',[0 0 1 .8]);
             text('position',[.05 .7],'string',...
                 {'Keyboard Shortcuts:',...
