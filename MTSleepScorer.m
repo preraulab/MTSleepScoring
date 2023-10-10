@@ -33,6 +33,7 @@ classdef MTSleepScorer < handle
         curr_channel;
         num_channels;
         Fs;
+        data;
 
         %Spectrogram properties
         stimes;
@@ -164,7 +165,7 @@ classdef MTSleepScorer < handle
             h=msgbox(['Loading ' obj.file_name '...']);
 
             %Load EDF
-            [hdr, shdr, data] = blockEdfLoad(fullfile(obj.data_path,obj.file_name),labels(s));
+            [hdr, shdr, obj.data] = blockEdfLoad(fullfile(obj.data_path,obj.file_name),labels(s));
 
             obj.Fs = hdr.samplingfrequency;
             obj.channel_labels = {shdr.signal_labels};
@@ -192,13 +193,13 @@ classdef MTSleepScorer < handle
                 for ii = 1:obj.num_channels
                     %Preallocate first time around
                     if ii == 1
-                        [spect,obj.stimes{res},obj.sfreqs{res}] = multitaper_spectrogram_mex(data{ii}, obj.Fs(ii), [params.frequency_range(1) min(params.frequency_range(2), obj.Fs(ii)/2)], ...
+                        [spect,obj.stimes{res},obj.sfreqs{res}] = multitaper_spectrogram_mex(obj.data{ii}, obj.Fs(ii), [params.frequency_range(1) min(params.frequency_range(2), obj.Fs(ii)/2)], ...
                             params.taper_params, params.window_params,params.min_nfft, params.detrend_opt, params.weighting, false, false);
 
                         spect_size = size(spect);
                         obj.scube{res} = zeros([obj.num_channels, spect_size]);
                     else
-                        spect = multitaper_spectrogram_mex(data{ii}, obj.Fs(ii), [params.frequency_range(1) min(params.frequency_range(2), obj.Fs(ii)/2)], ...
+                        spect = multitaper_spectrogram_mex(obj.data{ii}, obj.Fs(ii), [params.frequency_range(1) min(params.frequency_range(2), obj.Fs(ii)/2)], ...
                             params.taper_params, params.window_params,params.min_nfft, params.detrend_opt, params.weighting, false, false);
                     end
 
@@ -402,7 +403,7 @@ classdef MTSleepScorer < handle
             [obj.popfig_h, obj.popfigax_h]=slicepopup(obj.mainfig_h, obj.axes_main(2), obj.stimes{obj.curr_resolution}, obj.sfreqs{obj.curr_resolution}, [],  'Time (s)','Frequency (Hz)','Power (dB)', 'y', 0);
 
             %Adjust size and axes
-            set(obj.popfig_h,'units','normalized','position',[ 0   0.7   1 .2],'color','w','CloseRequestFcn',@obj.toggle_visible,'WindowKeyPressFcn',{@obj.toggle_with_key,'u'});
+            set(obj.popfig_h,'units','normalized','position',[ 0   0.7 .8 .2],'color','w','CloseRequestFcn',@obj.toggle_visible,'WindowKeyPressFcn',{@obj.toggle_with_key,'u'});
             set(obj.popfigax_h,'xlim',[.5 20],'ylim',caxis(obj.axes_main(2)));
 
             obj.update_hypno([]);
@@ -430,14 +431,15 @@ classdef MTSleepScorer < handle
                 '  left/right arrow (scroll wheel): Pan screen-width'...
                 '  up/down arrow (shift + scroll wheel): Zoom'...
                 '  z: Set zoom window size'...
+                '  ,/.: Cycle through electrodes'...
                 ''...
                 '  u: Toggle slice power spectrum'...
                 '  d: Create 3D popout of region'...
                 '',...
-                '  w/1: Add Wake stage'...
-                '  r/2: Add REM stage'...
-                '  n/3: Add NREM stage'...
-                '  a: Add Arousal event'...
+                '  w/5: Add Wake stage'...
+                '  r/4: Add REM stage'...
+                '  n(1/2/3): Add NREM stage'...
+                '  a:   Add Artifact event'...
                 '',...
                 '  s: Add Spindle event'...
                 '',...
@@ -537,24 +539,24 @@ classdef MTSleepScorer < handle
             stage_times = cellfun(@(x)x.XData(1),{obj.event_marker.event_list(stage_inds).obj_handle});
 
             if ~isempty(event_time)
-            %Get selected stage
-            selected_ind = obj.event_marker.selected_ind;
-            selected_stage = obj.event_marker.event_list(selected_ind).type_ID;
+                %Get selected stage
+                selected_ind = obj.event_marker.selected_ind;
+                selected_stage = obj.event_marker.event_list(selected_ind).type_ID;
 
-            %Return if not a stage time
-            if selected_stage>6
-                return;
-            end
+                %Return if not a stage time
+                if selected_stage>6
+                    return;
+                end
 
-            %Find the original stage time
-            selected_time_old = obj.event_marker.event_list(selected_ind).obj_handle.XData(1);
+                %Find the original stage time
+                selected_time_old = obj.event_marker.event_list(selected_ind).obj_handle.XData(1);
 
-            %Find and update the time corresponding to the selected stage
-            selected_ind_new = stage_times == selected_time_old;
+                %Find and update the time corresponding to the selected stage
+                selected_ind_new = stage_times == selected_time_old;
 
-            if any(selected_ind_new)
-                stage_times(selected_ind_new) = event_time;
-            end
+                if any(selected_ind_new)
+                    stage_times(selected_ind_new) = event_time;
+                end
             end
 
             %Sort the times and plot the hypnogram
@@ -631,6 +633,13 @@ classdef MTSleepScorer < handle
             obj.msg_textbox_h.String = '';
         end
 
+
+        %************************************************************
+        %              DETECT ARTIFACTS
+        %************************************************************
+        function detect_EEGartifacts(obj, varargin)
+            artifacts = detect_artifacts(obj.data{obj.curr_channel}, obj.Fs);
+        end
         %************************************************************
         %              UPDATE CLIM SLIDER
         %************************************************************
@@ -801,37 +810,52 @@ classdef MTSleepScorer < handle
 
             %Check for hotkeys pressed
             switch lower(event.Character)
-                case {'w', '1'}
+                case {'w', '5'}
                     obj.event_marker.mark_event(5);
                     obj.save_scoring;
-                case {'r', '2'}
+                case {'r', '4'}
                     obj.event_marker.mark_event(4);
                     obj.save_scoring;
-                case {'n', '3'}
+                case 'n'
                     obj.event_marker.mark_event(3);
                     obj.save_scoring;
+                case '1'
+                    if obj.numstages == 5
+                        obj.event_marker.mark_event(3);
+                        obj.save_scoring;
+                    end
+                case '2'
+                    if obj.numstages == 5
+                        obj.event_marker.mark_event(2);
+                        obj.save_scoring;
+                    end
+                case '3'
+                    if obj.numstages == 5
+                        obj.event_marker.mark_event(1);
+                        obj.save_scoring;
+                    end
                 case 's'
                     obj.event_marker.mark_event(7);
                     obj.save_scoring;
                 case 'a'
                     %Add artifact event
                     new_event = obj.event_marker.mark_event(6);
-                    % 
-                    % %Find the previous stage
-                    % newID = new_event.event_ID;
-                    % % [etimes, etypes, eIDs, isregion] = obj.event_marker.get_events;
-                    % % 
-                    % % %Remove all region events
-                    % % eIDs = eIDs(~isregion);
-                    % % etimes = etimes(~isregion);
-                    % % etypes = etypes(~isregion);
-                    % % 
-                    % % eind = find(eIDs == newID);
-                    % % etime = etimes(eind);
-                    % % last_stage = etypes(max(eind-1,1));
-                    % 
-                    % %Mark previous stage 30s after
-                    % obj.event_marker.mark_event(last_stage,etime+30);
+
+                    %Find the previous stage
+                    newID = new_event.event_ID;
+                    [etimes, etypes, eIDs, isregion] = obj.event_marker.get_events;
+
+                    %Remove all region events
+                    eIDs = eIDs(~isregion);
+                    etimes = etimes(~isregion);
+                    etypes = etypes(~isregion);
+
+                    eind = find(eIDs == newID);
+                    etime = etimes(eind);
+                    last_stage = etypes(max(eind-1,1));
+
+                    %Mark previous stage 30s after
+                    obj.event_marker.mark_event(last_stage,etime+30);
                     obj.save_scoring;
                 case 'h'
                     obj.toggle_visible(obj.helpfig_h);
@@ -841,6 +865,8 @@ classdef MTSleepScorer < handle
                     obj.close_all;
                 case 'd'
                     obj.pop_3d;
+                case 'x'
+                    obj.detect_EEGartifacts;
                 case ','
                     new_chan = obj.curr_channel + 1;
                     if new_chan > obj.num_channels
@@ -860,7 +886,7 @@ classdef MTSleepScorer < handle
             obj.update_hypno([]);
         end
 
-       
+
 
         %************************************************************
         %               CLOSE ALL FIGURES CLEANLY
