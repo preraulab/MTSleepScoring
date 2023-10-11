@@ -304,7 +304,7 @@ classdef MTSleepScorer < handle
             obj.spect_title_h.Position(2) = obj.spect_title_h.Position(2) + .05;
 
             %Plot xticks in HH:MM:SS every 30 min
-            min_step = 30*60h;
+            min_step = 30*60;
             set(obj.axes_main(2),'xtick',0:min_step:obj.stimes{obj.curr_resolution}(end),'xticklabel',datestr((0:min_step:obj.stimes{obj.curr_resolution}(end))*datefact,'HH:MM:SS')); %#ok<*DATST>
 
             %Link to main figure
@@ -441,7 +441,6 @@ classdef MTSleepScorer < handle
                 '  x: Automatically detect artifacts'...
                 '  a: Add Artifact event'...
                 '',...
-                ''...
                 '  u: Toggle slice power spectrum'...
                 '  d: Create 3D popout of region'...
 
@@ -504,6 +503,33 @@ classdef MTSleepScorer < handle
             set(obj.zoom_textbox_h,'string',...
                 sprintf(['Time Range:\t\t\t' datestr(xl(1)*datefact,'HH:MM:SS') ' - ' datestr(xl(2)*datefact,'HH:MM:SS')...
                 '\nWindow Size:\t\t' datestr(diff(xl)*datefact,'HH:MM:SS')]));
+
+            x_range = diff(xl);
+            if x_range<5
+                min_step = .5;
+            elseif x_range<30
+                min_step = 1;
+            elseif x_range<120
+                min_step = 5;
+            elseif x_range<5*60
+                min_step = 30;
+            elseif x_range<10*60
+                min_step=60;
+            elseif x_range<30*60
+                min_step = 5*60;
+            elseif x_range<2*3600
+                min_step = 10*60;
+            elseif x_range<5*3600
+                min_step = 15*60;
+            else
+                min_step = 3600;
+            end
+
+            if x_range>10
+            set(obj.axes_main(2),'xtick',0:min_step:obj.stimes{obj.curr_resolution}(end),'xticklabel',datestr((0:min_step:obj.stimes{obj.curr_resolution}(end))*datefact,'HH:MM:SS')); %#ok<*DATST>
+            else
+            set(obj.axes_main(2),'xtick',0:min_step:obj.stimes{obj.curr_resolution}(end),'xticklabel',datestr((0:min_step:obj.stimes{obj.curr_resolution}(end))*datefact,'HH:MM:SS:FFF')); %#ok<*DATST>
+            end
         end
 
         %************************************************************
