@@ -76,6 +76,13 @@ classdef MTSleepScorer < handle
         zoom_slider;
         pan_slider;
 
+        %Callbacks
+        WindowButtonDownFcn
+        WindowButtonMotionFcn
+        WindowButtonUpFcn
+        WindowKeyPressFcn
+        WindowKeyReleaseFcn
+        WindowScrollWheelFcn
     end
 
     %%%%%%%%%%%%%%% public methods %%%%%%%%%%%%%%%%%%%%%%
@@ -423,7 +430,7 @@ classdef MTSleepScorer < handle
         %                    HELP FUNCTION
         %************************************************************
         function display_help(obj)
-            obj.helpfig_h=figure('units','normalized','position',[0 .7 .1 .25],'color','w','name','EEG Viewer','menubar','none');
+            obj.helpfig_h=figure('units','normalized','position',[0 0.7 0.13 0.25],'color','w','name','EEG Viewer','menubar','none');
             axes('units','normalized','position',[0 0 1 .8]);
             text('position',[.05 .7],'string',...
                 {'Keyboard Shortcuts:',...
@@ -436,14 +443,12 @@ classdef MTSleepScorer < handle
                 '  w/5: Add Wake stage'...
                 '  r/4: Add REM stage'...
                 '  n(1/2/3): Add NREM stage'...
-                '  s: Add Spindle event'...
                 ''...
                 '  x: Automatically detect artifacts'...
                 '  a: Add Artifact event'...
                 '',...
                 '  u: Toggle slice power spectrum'...
                 '  d: Create 3D popout of region'...
-
                 '',...
                 '  h: Toggle this help window'...
                 '  q: Quit the program'...
@@ -504,6 +509,7 @@ classdef MTSleepScorer < handle
                 sprintf(['Time Range:\t\t\t' datestr(xl(1)*datefact,'HH:MM:SS') ' - ' datestr(xl(2)*datefact,'HH:MM:SS')...
                 '\nWindow Size:\t\t' datestr(diff(xl)*datefact,'HH:MM:SS')]));
 
+            %Update the xticks depending on the time range
             x_range = diff(xl);
             if x_range<5
                 min_step = .5;
@@ -526,9 +532,9 @@ classdef MTSleepScorer < handle
             end
 
             if x_range>10
-            set(obj.axes_main(2),'xtick',0:min_step:obj.stimes{obj.curr_resolution}(end),'xticklabel',datestr((0:min_step:obj.stimes{obj.curr_resolution}(end))*datefact,'HH:MM:SS')); %#ok<*DATST>
+                set(obj.axes_main(2),'xtick',0:min_step:obj.stimes{obj.curr_resolution}(end),'xticklabel',datestr((0:min_step:obj.stimes{obj.curr_resolution}(end))*datefact,'HH:MM:SS')); %#ok<*DATST>
             else
-            set(obj.axes_main(2),'xtick',0:min_step:obj.stimes{obj.curr_resolution}(end),'xticklabel',datestr((0:min_step:obj.stimes{obj.curr_resolution}(end))*datefact,'HH:MM:SS:FFF')); %#ok<*DATST>
+                set(obj.axes_main(2),'xtick',0:min_step:obj.stimes{obj.curr_resolution}(end),'xticklabel',datestr((0:min_step:obj.stimes{obj.curr_resolution}(end))*datefact,'HH:MM:SS:FFF')); %#ok<*DATST>
             end
         end
 
@@ -582,7 +588,7 @@ classdef MTSleepScorer < handle
             stage_times = arrayfun(@(x)x.time_bounds,obj.event_marker.event_list(stage_inds));
 
             %Add an end point
-            stage_times = [stage_times length(obj.data{obj.curr_channel})/obj.Fs];
+            stage_times = [stage_times length(obj.data{obj.curr_channel})/obj.Fs(obj.curr_channel)];
             stage_vals = [stage_vals stage_vals(end)];
 
             art_inds = event_types==6; %Pick only stages
@@ -709,7 +715,6 @@ classdef MTSleepScorer < handle
             obj.msg_textbox_h.String = '';
         end
 
-
         %************************************************************
         %              DETECT ARTIFACTS
         %************************************************************
@@ -721,18 +726,16 @@ classdef MTSleepScorer < handle
             % stage_vals = event_types(stage_inds);
             % stage_times = cellfun(@(x)x.XData(1),{obj.event_marker.event_list(stage_inds).obj_handle});
 
-            artifacts = detect_artifacts(obj.data{obj.curr_channel}, obj.Fs,...
+            artifacts = detect_artifacts(obj.data{obj.curr_channel}, obj.Fs(obj.curr_channel),...
                 'zscore_method','robust','hf_crit', 5.5,'bb_crit', 5.5,'slope_test',true, 'verbose',true);
-
-
 
             %Get consecutive artifacts longer than one time point
             [~, run_inds] = consecutive_runs(artifacts,2);
             start_inds = cellfun(@(x)x(1),run_inds);
             end_inds = cellfun(@(x)x(end),run_inds);
 
-            start_times = start_inds/obj.Fs;
-            end_times = end_inds/obj.Fs;
+            start_times = start_inds/obj.Fs(obj.curr_channel);
+            end_times = end_inds/obj.Fs(obj.curr_channel);
             ylims = get(obj.axes_main(2),'YLim');
             for ii = 1:length(start_times)
                 newpos = [start_times(ii), ylims(1), end_times(ii)-start_times(ii), diff(ylims)];
@@ -741,30 +744,6 @@ classdef MTSleepScorer < handle
 
 
             obj.update_hypno([]);
-
-            % %Find the proper end stage
-            % stage_ends = interp1(stage_times,stage_vals,artifact_times(end_inds),'previous');
-            %
-            % %Delete the stages in the middle
-            % for ii = 1:length(start_inds)
-            %     delete_inds = stage_times>=artifact_times(start_inds(ii)) & stage_times<artifact_times(end_inds(ii));
-            %     stage_times = stage_times(~delete_inds);
-            %     stage_vals = stage_vals(~delete_inds);
-            % end
-            %
-            % %Add to the hypnogram
-            % stage_times = [stage_times artifact_times(start_inds) artifact_times(end_inds)];
-            % stage_vals = [stage_vals 6*ones(1,sum(start_inds)) stage_ends];
-            %
-            % [stage_times, sort_inds] = sort(stage_times);
-            % stage_vals = stage_vals(sort_inds);
-            %
-            % x=[obj.stimes{obj.curr_resolution}(1) stage_times obj.stimes{obj.curr_resolution}(end)];
-            %          y=[0 stage_vals(:)' 0];
-            %          X=reshape(repmat(x,2,1),1,length(x)*2);
-            %          Y=reshape(repmat(y,2,1),1,length(y)*2);
-            %          set(obj.hypnoline,'ydata',Y(1:end-1),'xdata',X(2:end));
-            %          drawnow;
         end
         %************************************************************
         %              UPDATE CLIM SLIDER
@@ -843,36 +822,6 @@ classdef MTSleepScorer < handle
             set(obj.clim_editboxes_h(2),'string',num2str(cx(2)));
         end
 
-        %************************************************************
-        %              AUTOSCORE TF_SIGMA PEAKS
-        %************************************************************
-        function autoscore_TFsigma_peaks(obj, varargin)
-
-            % [hdr, ~, data] = blockEdfLoad(fullfile(obj.data_path,obj.file_name),{obj.channel_labels{obj.curr_channel}});
-            %
-            % estage = [obj.event_marker.event_list.type_ID];
-            % stage_inds = estage<=6; %Pick only stages
-            % estage = estage(stage_inds);
-            %
-            % etimes = cellfun(@(x)x.XData(1),{obj.event_marker.event_list(stage_inds).obj_handle});
-            %
-            % %Sort the times and plot the hypnogram
-            % [stage_times,sind]=sort(etimes);
-            % stage_vals=estage(sind);
-            %
-            % h = msgbox('Autodetecting TF_sigma Peaks...');
-            % [ spindle_table, ~, ~, ~, ~ ] = ...
-            %     TF_peak_detection(data{1},  hdr.samplingfrequency, [stage_times(:), stage_vals(:)],...
-            %     'to_plot',false, 'spindle_freq_range',[10,16], 'detection_stages',3);
-            % delete(h);
-            %
-            % pos = [ spindle_table.Start_Time, spindle_table.Freq_Low,...
-            %     spindle_table.Duration, spindle_table.Freq_High-spindle_table.Freq_Low ];
-            % obj.event_marker.mark_event(7,pos);
-            %
-            % obj.save_scoring;
-        end
-
 
         %************************************************************
         %              UPDATE AUTOSCALE
@@ -884,6 +833,9 @@ classdef MTSleepScorer < handle
                 return
             end
 
+            %Pause callbacks to let the rectangle draw
+            obj.pause_callbacks();
+
             %Use drawrectangle if available
             if which('drawrectangle.m')
                 h1 = drawrectangle('Label','Select Region and Hit Enter','Color',[1 0 0]);
@@ -891,19 +843,24 @@ classdef MTSleepScorer < handle
                 h1 = imrect; %#ok<IMRECT>
             end
 
+            %Save the position and kill the rectangle
             wait(h1);
-
             pos = h1.Position;
-
             delete(h1);
 
+            %Resume all callbacks
+            obj.resume_callbacks;
+
+            %Get the frequency and time range selected
             finds = obj.sfreqs{obj.curr_resolution} >= pos(2) & obj.sfreqs{obj.curr_resolution} <= pos(2)+pos(4);
             tinds = obj.stimes{obj.curr_resolution} >= pos(1) & obj.stimes{obj.curr_resolution} <= pos(1)+pos(3);
 
+            %Extract the spectrogram in the range
             pop_spect = squeeze(obj.scube{obj.curr_resolution}(obj.curr_channel,finds,tinds));
             pop_sfreqs = obj.sfreqs{obj.curr_resolution}(finds);
             pop_stimes = obj.stimes{obj.curr_resolution}(tinds);
 
+            %Create the popup figure
             figure
             surface(pop_stimes,pop_sfreqs,pop_spect,'edgecolor','none');
             xlabel('Times (s)');
@@ -956,9 +913,9 @@ classdef MTSleepScorer < handle
                         obj.event_marker.mark_event(1);
                         obj.save_scoring;
                     end
-                case 's'
-                    obj.event_marker.mark_event(7);
-                    obj.save_scoring;
+                % case 's'
+                %     obj.event_marker.mark_event(7);
+                %     obj.save_scoring;
                 case 'a'
                     %Add artifact event
                     obj.event_marker.mark_event(6);
@@ -969,11 +926,11 @@ classdef MTSleepScorer < handle
                     art_label_handles = [obj.event_marker.event_list(art_inds).label_handle];
                     isvis = strcmp(get(art_label_handles(1),'visible'),'on');
                     if isvis
-                    set(art_handles,'visible','off');
-                    set(art_label_handles,'visible','off');
+                        set(art_handles,'visible','off');
+                        set(art_label_handles,'visible','off');
                     else
-                                        set(art_handles,'visible','on');
-                    set(art_label_handles,'visible','on');
+                        set(art_handles,'visible','on');
+                        set(art_label_handles,'visible','on');
                     end
                 case 'h'
                     obj.toggle_visible(obj.helpfig_h);
@@ -997,14 +954,10 @@ classdef MTSleepScorer < handle
                         new_chan = obj.num_channels;
                     end
                     obj.update_channel(new_chan);
-                case '*'
-                    obj.autoscore_TFsigma_peaks;
             end
 
             obj.update_hypno([]);
         end
-
-
 
         %************************************************************
         %               CLOSE ALL FIGURES CLEANLY
@@ -1025,6 +978,40 @@ classdef MTSleepScorer < handle
                 delete(obj.popfig_h);
                 delete(obj.helpfig_h);
             end
+        end
+
+        %************************************************************
+        %            PAUSE CALLBACKS FOR OTHER FUNCTIONS
+        %************************************************************
+        function pause_callbacks(obj, varargin)
+            %Save and pause callbacks
+            obj.WindowButtonDownFcn = get(gcf,"WindowButtonDownFcn");
+            obj.WindowButtonMotionFcn = get(gcf,"WindowButtonMotionFcn");
+            obj.WindowButtonUpFcn = get(gcf,"WindowButtonUpFcn");
+            obj.WindowKeyPressFcn = get(gcf,"WindowKeyPressFcn");
+            obj.WindowKeyReleaseFcn = get(gcf,"WindowKeyReleaseFcn");
+            obj.WindowScrollWheelFcn = get(gcf,"WindowScrollWheelFcn");
+
+            %Kill callbacks
+            set(gcf,"WindowButtonDownFcn",[]);
+            set(gcf,"WindowButtonMotionFcn",[]);
+            set(gcf,"WindowButtonUpFcn",[]);
+            set(gcf,"WindowKeyPressFcn",[]);
+            set(gcf,"WindowKeyReleaseFcn",[]);
+            set(gcf,"WindowScrollWheelFcn",[]);
+        end
+
+        %************************************************************
+        %                 RESUME CALLBACKS
+        %************************************************************
+        function resume_callbacks(obj,varargin)
+            %Restore callbacks
+            set(gcf,"WindowButtonDownFcn",obj.WindowButtonDownFcn);
+            set(gcf,"WindowButtonMotionFcn",obj.WindowButtonMotionFcn);
+            set(gcf,"WindowButtonUpFcn",obj.WindowButtonUpFcn);
+            set(gcf,"WindowKeyPressFcn",obj.WindowKeyPressFcn);
+            set(gcf,"WindowKeyReleaseFcn",obj.WindowKeyReleaseFcn);
+            set(gcf,"WindowScrollWheelFcn",obj.WindowScrollWheelFcn);
         end
     end
 end
