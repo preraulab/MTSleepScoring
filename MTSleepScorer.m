@@ -1,7 +1,54 @@
 classdef MTSleepScorer < handle
-    %   Copyright 2021 Michael J. Prerau, Ph.D. - http://www.sleepEEG.org
-    %   This work is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License.
-    %   (http://creativecommons.org/licenses/by-nc-sa/4.0/)
+% MTSleepScorer  Interactive GUI for scoring and viewing sleep EEG data
+%
+%   Usage:
+%       obj = MTSleepScorer()
+%
+%   Input:
+%       varargin: Additional input arguments
+%
+%   Description:
+%       The MTSleepScorer class provides functionality for scoring sleep stages in EEG data.
+%
+%   Properties (Access = public):
+%       - event_marker: EventMarker object for marking events on the spectrogram
+%       - numstages: Number of sleep stages (3 or 5)
+%       - data_path: Path to data file (default: loading default)
+%       - save_path: Path for saving scored data (default: saving default)
+%       - file_name: Current data file
+%       - save_fname: File name for saving scored data
+%       - initials: Scorer's initials
+%       - mainfig_h: Main figure handle
+%       - axes_main: Main figure axes array
+%
+%   Public Methods (Access = public):
+%       - MTSleepScorer: Constructor method. Calls the initialization script
+%
+%   Keyboard Shortcuts:
+%       - left/right arrow (scroll wheel): Pan screen-width
+%       - up/down arrow (shift + scroll wheel): Zoom
+%       - z: Set zoom window size
+%       - ,/.: Cycle through electrodes
+%       - w/5: Add Wake stage
+%       - r/4: Add REM stage
+%       - n(1/2/3): Add NREM stage
+%       - x: Automatically detect artifacts
+%       - a: Add Artifact event
+%       - u: Toggle slice power spectrum
+%       - d: Create 3D popout of region
+%       - h: Toggle this help window
+%       - q: Quit the program
+%
+%   Example:
+%   %Initialize the MTSleepScorer class and load EEG data:
+%   obj = MTSleepScorer();
+%
+%   See also EventMarker
+%
+%   Copyright 2023 Michael J. Prerau Laboratory. - http://www.sleepEEG.org
+%********************************************************************
+
+
 
     %%%%%%%%%%%%%%%% public properties %%%%%%%%%%%%%%%%%%
     properties (Access = public)
